@@ -22,7 +22,6 @@ def get_next_word_probability(sentence, next_word):
 
     next_word_index = tokenizer.convert_tokens_to_ids(next_word)
     next_word_probability = predictions[next_word_index].item()
-    tokenizer.convert_tokens_to_string
     return next_word_probability
 
 PATH = "./texts/"
