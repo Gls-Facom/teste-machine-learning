@@ -2,7 +2,6 @@ import torch
 import pandas as pd
 from transformers import BertTokenizer, BertForMaskedLM
 
-
 tokenizer = BertTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased', do_basic_tokenize=False)
 model = BertForMaskedLM.from_pretrained('neuralmind/bert-base-portuguese-cased')
 
@@ -30,21 +29,24 @@ if __name__ == '__main__':
         text = f.read()
     words = text.split(' ')
 
-    # # Token Embeddings
-    # input_ids = tokenizer.convert_tokens_to_ids(tokens)
-    # input_tensor = torch.tensor([input_ids])
-    # with torch.no_grad():
-    #     outputs = model(input_tensor)
-    #     embeddings = outputs[0][0]  # Extract token embeddings from the last layer
+    # Token Embeddings
+    input_ids = tokenizer.encode(words, add_special_tokens=False)
+    input_tensor = torch.tensor([input_ids])
+    with torch.no_grad():
+        outputs = model(input_tensor)
+        embeddings = outputs[0][0]  # Extract token embeddings from the last layer
 
     for id, word in enumerate(words):
         sentence = words[:id+2]
-        next_word = words[id+1]
+        next_word = sentence[-1]
         
         probability = get_next_word_probability(sentence, next_word)
 
-        # curr_embedding = embeddings[id+1]
-        # next_embedding = embeddings[id+2]
+        tokenized_next_word = tokenizer.tokenize(next_word)
+        tokenized_next_word = tokenizer.encode(''.join([word.replace('##', '') for word in tokenized_next_word]), add_special_tokens=False)
+        curr_embedding = embeddings[id]
+        next_embedding = embeddings[id+1]
+        print(torch.cosine_similarity(next_embedding, curr_embedding, dim=0))
         # if probability > 1 or torch.cosine_similarity(next_embedding, curr_embedding, dim=0) >= 0.8:
         #     tokens[id+2] = tokens[id+2].replace('##', '')
             #TODO combine words that are in multiple tokens (guloso?)
