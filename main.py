@@ -1,9 +1,10 @@
-import torch
-import pandas as pd
 from transformers import BertTokenizer, BertForMaskedLM
+import torch
+from find import BruteForceTokenizer
 
-tokenizer = BertTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased', do_basic_tokenize=False)
+tokenizer = BertTokenizer.from_pretrained('neuralmind/bert-base-portuguese-cased', do_special_tokens=True)
 model = BertForMaskedLM.from_pretrained('neuralmind/bert-base-portuguese-cased')
+model.eval()
 
 def get_next_word_probability(sentence, next_word):
     sentence[-1] = "[MASK]"
@@ -23,12 +24,26 @@ def get_next_word_probability(sentence, next_word):
     next_word_probability = predictions[next_word_index].item()
     return next_word_probability
 
+def find_longest_token(tokens, words=[]):
+    longest_token = ''.join(tokens).replace('##','')
+    if longest_token in ptBR_dictionary or tokenizer.convert_tokens_to_ids(longest_token) != tokenizer.all_special_ids[0]:
+        words.append(longest_token)
+        return words
+    else:
+        find_longest_token(tokens[:-1], words)
+        find_longest_token(tokens[-1], words)
+        return words
+
 PATH = "./texts/"
 if __name__ == '__main__':    
     with open(PATH+'bela_vista.txt', encoding='utf-8') as f:
         text = f.read()
     words = text.split(' ')
 
+    with open(PATH+'dicionario_ptBR.txt', encoding='utf-8') as f:
+        ptBR_dictionary = set(f.read().split('\n'))
+    
+    brute_force_tokenizer = BruteForceTokenizer(PATH)
     # Token Embeddings
     input_ids = tokenizer.encode(words, add_special_tokens=False)
     input_tensor = torch.tensor([input_ids])
@@ -36,19 +51,23 @@ if __name__ == '__main__':
         outputs = model(input_tensor)
         embeddings = outputs[0][0]  # Extract token embeddings from the last layer
 
-    for id, word in enumerate(words):
-        sentence = words[:id+2]
+    #assumes that first word is correct
+    final_words = [words[0]]
+    for id in range(len(words)-1):
+        sentence = final_words + [words[id+1]]
         next_word = sentence[-1]
         
         probability = get_next_word_probability(sentence, next_word)
-
-        tokenized_next_word = tokenizer.tokenize(next_word)
-        tokenized_next_word = tokenizer.encode(''.join([word.replace('##', '') for word in tokenized_next_word]), add_special_tokens=False)
-        curr_embedding = embeddings[id]
-        next_embedding = embeddings[id+1]
-        print(torch.cosine_similarity(next_embedding, curr_embedding, dim=0))
-        # if probability > 1 or torch.cosine_similarity(next_embedding, curr_embedding, dim=0) >= 0.8:
-        #     tokens[id+2] = tokens[id+2].replace('##', '')
-            #TODO combine words that are in multiple tokens (guloso?)
+        
+        if probability > 1: 
+            longest_token = find_longest_token(tokenizer.tokenize(next_word), [])
+            final_words.extend(longest_token)
+        else:
+            if next_word in ptBR_dictionary:
+                print('should never print this')
+            else:
+                tokens = brute_force_tokenizer(next_word, words=[])[0].replace('##','')
+                print(tokens)
                 
-        print(f"A probabilidade de '{next_word}' ser a próxima palavra: {probability}")
+                
+        print(' '.join(final_words))
